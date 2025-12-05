@@ -56,6 +56,7 @@ const TodoList: React.FC = () => {
 
       if (error) throw error;
       setInputValue('');
+      await fetchTodos(); // Refresh the list immediately
     } catch (error) {
       console.error('Error adding todo:', error);
     }
@@ -72,6 +73,7 @@ const TodoList: React.FC = () => {
         .eq('id', id);
 
       if (error) throw error;
+      await fetchTodos(); // Refresh the list immediately
     } catch (error) {
       console.error('Error toggling todo:', error);
     }
@@ -85,6 +87,7 @@ const TodoList: React.FC = () => {
         .eq('id', id);
 
       if (error) throw error;
+      await fetchTodos(); // Refresh the list immediately
     } catch (error) {
       console.error('Error deleting todo:', error);
     }
