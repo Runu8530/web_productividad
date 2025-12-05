@@ -50,9 +50,9 @@ const TodoList: React.FC = () => {
         completed: false
       };
 
-      const { error } = await supabase
-        .from('todos')
-        .insert(newTodo as any);
+      const { error } = await (supabase
+        .from('todos') as any)
+        .insert(newTodo);
 
       if (error) throw error;
       setInputValue('');
@@ -79,8 +79,8 @@ const TodoList: React.FC = () => {
 
   const deleteTodo = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('todos')
+      const { error } = await (supabase
+        .from('todos') as any)
         .delete()
         .eq('id', id);
 
