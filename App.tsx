@@ -7,30 +7,62 @@ import EventModal from './components/EventModal';
 import { Icons } from './components/ui/Icons';
 import { AppView, CalendarEvent } from './types';
 import { fetchGoogleCalendarEvents } from './utils/googleCalendar';
+import { supabase, type Database } from './utils/supabase';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('dashboard');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
-    const loadGoogleEvents = async () => {
+    const loadEvents = async () => {
+      // Fetch events from Supabase
+      const { data: supabaseEvents, error } = await supabase
+        .from('events')
+        .select('*')
+        .order('start_date', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching Supabase events:', error);
+      }
+
+      // Fetch Google Calendar events
       const apiKey = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY;
       const calendarId = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
 
+      let googleEvents: CalendarEvent[] = [];
       if (apiKey && calendarId) {
-        const googleEvents = await fetchGoogleCalendarEvents(apiKey, calendarId);
-        if (googleEvents.length > 0) {
-          setEvents(prev => {
-            // Avoid duplicates based on ID
-            const existingIds = new Set(prev.map(e => e.id));
-            const newEvents = googleEvents.filter(e => !existingIds.has(e.id));
-            return [...prev, ...newEvents];
-          });
-        }
+        googleEvents = await fetchGoogleCalendarEvents(apiKey, calendarId);
       }
+
+      // Merge events: Supabase events + Google Calendar events
+      const allEvents: CalendarEvent[] = [
+        ...(supabaseEvents || []).map(e => ({
+          id: e.id,
+          title: e.title,
+          start: new Date(e.start_date),
+          end: e.end_date ? new Date(e.end_date) : undefined,
+          description: e.description || undefined,
+          color: e.color,
+        })),
+        ...googleEvents,
+      ];
+
+      setEvents(allEvents);
     };
 
-    loadGoogleEvents();
+    loadEvents();
+
+    // Subscribe to real-time changes for events
+    const channel = supabase
+      .channel('events_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => {
+        loadEvents();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Modal State
@@ -50,18 +82,59 @@ const App: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSaveEvent = (event: CalendarEvent) => {
-    if (selectedEvent) {
-      // Update
-      setEvents(events.map(e => e.id === event.id ? event : e));
-    } else {
-      // Create
-      setEvents([...events, event]);
+  const handleSaveEvent = async (event: CalendarEvent) => {
+    try {
+      if (selectedEvent) {
+        // Update existing event
+        const updateData = {
+          title: event.title,
+          start_date: event.start.toISOString(),
+          end_date: event.end ? event.end.toISOString() : null,
+          description: event.description || null,
+          color: event.color || '#3b82f6',
+        };
+
+        const { error } = await supabase
+          .from('events')
+          // @ts-ignore - Supabase type inference issue
+          .update(updateData)
+          .eq('id', event.id);
+
+        if (error) throw error;
+      } else {
+        // Create new event
+        const insertData = {
+          id: event.id,
+          title: event.title,
+          start_date: event.start.toISOString(),
+          end_date: event.end ? event.end.toISOString() : null,
+          description: event.description || null,
+          color: event.color || '#3b82f6',
+        };
+
+        const { error } = await supabase
+          .from('events')
+          // @ts-ignore - Supabase type inference issue
+          .insert(insertData);
+
+        if (error) throw error;
+      }
+    } catch (error) {
+      console.error('Error saving event:', error);
     }
   };
 
-  const handleDeleteEvent = (id: string) => {
-    setEvents(events.filter(e => e.id !== id));
+  const handleDeleteEvent = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting event:', error);
+    }
   };
 
   return (

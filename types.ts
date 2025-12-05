@@ -2,11 +2,13 @@ export type EventColor = 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'gray'
 
 export interface CalendarEvent {
   id: string;
-  date: string; // ISO date string YYYY-MM-DD
   title: string;
-  description: string;
-  color: EventColor;
+  start: Date;
+  end?: Date;
+  description?: string;
+  color?: string;
 }
+
 
 export type TimerMode = 'pomodoro' | 'stopwatch';
 

@@ -1,29 +1,93 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Icons } from './ui/Icons';
-
-interface Todo {
-  id: string;
-  text: string;
-  completed: boolean;
-}
+import { supabase, type Todo, type Database } from '../utils/supabase';
 
 const TodoList: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [inputValue, setInputValue] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const addTodo = (e: React.FormEvent) => {
+  // Fetch todos from Supabase on mount
+  useEffect(() => {
+    fetchTodos();
+
+    // Subscribe to real-time changes
+    const channel = supabase
+      .channel('todos_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, () => {
+        fetchTodos();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const fetchTodos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('todos')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      setTodos(data || []);
+    } catch (error) {
+      console.error('Error fetching todos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addTodo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
-    setTodos([...todos, { id: crypto.randomUUID(), text: inputValue, completed: false }]);
-    setInputValue('');
+
+    try {
+      const newTodo: Database['public']['Tables']['todos']['Insert'] = {
+        text: inputValue,
+        completed: false
+      };
+
+      const { error } = await supabase
+        .from('todos')
+        .insert(newTodo as any);
+
+      if (error) throw error;
+      setInputValue('');
+    } catch (error) {
+      console.error('Error adding todo:', error);
+    }
   };
 
-  const toggleTodo = (id: string) => {
-    setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+  const toggleTodo = async (id: string) => {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+
+    try {
+      const { error } = await (supabase
+        .from('todos') as any)
+        .update({ completed: !todo.completed })
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error toggling todo:', error);
+    }
   };
 
-  const deleteTodo = (id: string) => {
-    setTodos(todos.filter(t => t.id !== id));
+  const deleteTodo = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('todos')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Error deleting todo:', error);
+    }
   };
 
   return (
@@ -56,23 +120,28 @@ const TodoList: React.FC = () => {
       </form>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
-        {todos.length === 0 && (
+        {loading ? (
+          <div className="h-full flex items-center justify-center text-zinc-600">
+            <p className="text-sm">Loading...</p>
+          </div>
+        ) : todos.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-zinc-600 space-y-2 opacity-50 min-h-[100px]">
             <Icons.Check className="w-8 h-8 mb-2" />
             <p className="text-sm font-mono uppercase tracking-widest">No tasks yet</p>
           </div>
+        ) : (
+          todos.map(todo => (
+            <div key={todo.id} className="group flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-transparent hover:border-white/10 transition-all hover:bg-white/[0.07]">
+              <button onClick={() => toggleTodo(todo.id)} className={`flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${todo.completed ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-500' : 'border-zinc-600 hover:border-zinc-500'}`}>
+                {todo.completed && <Icons.Check className="w-3 h-3" />}
+              </button>
+              <span className={`flex-1 text-sm transition-colors ${todo.completed ? 'text-zinc-600 line-through decoration-zinc-700' : 'text-zinc-300'}`}>{todo.text}</span>
+              <button onClick={() => deleteTodo(todo.id)} className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-400 transition-all">
+                <Icons.Trash className="w-4 h-4" />
+              </button>
+            </div>
+          ))
         )}
-        {todos.map(todo => (
-          <div key={todo.id} className="group flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-transparent hover:border-white/10 transition-all hover:bg-white/[0.07]">
-            <button onClick={() => toggleTodo(todo.id)} className={`flex-shrink-0 w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${todo.completed ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-500' : 'border-zinc-600 hover:border-zinc-500'}`}>
-              {todo.completed && <Icons.Check className="w-3 h-3" />}
-            </button>
-            <span className={`flex-1 text-sm transition-colors ${todo.completed ? 'text-zinc-600 line-through decoration-zinc-700' : 'text-zinc-300'}`}>{todo.text}</span>
-            <button onClick={() => deleteTodo(todo.id)} className="opacity-0 group-hover:opacity-100 p-1.5 text-zinc-500 hover:text-red-400 transition-all">
-              <Icons.Trash className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
       </div>
     </div>
   );
