@@ -10,15 +10,7 @@ import { fetchGoogleCalendarEvents } from './utils/googleCalendar';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('dashboard');
-  const [events, setEvents] = useState<CalendarEvent[]>([
-    {
-      id: '1',
-      date: new Date().toISOString().split('T')[0],
-      title: 'Project Deadline',
-      description: 'Submit the final React application.',
-      color: 'red'
-    }
-  ]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
     const loadGoogleEvents = async () => {
