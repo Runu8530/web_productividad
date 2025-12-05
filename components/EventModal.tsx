@@ -25,16 +25,35 @@ const EventModal: React.FC<EventModalProps> = ({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [color, setColor] = useState<string>('#3b82f6');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('10:00');
 
   useEffect(() => {
     if (existingEvent) {
       setTitle(existingEvent.title);
       setDescription(existingEvent.description || '');
       setColor(existingEvent.color || '#3b82f6');
+
+      // Extract time from existing event
+      const start = new Date(existingEvent.start);
+      const end = existingEvent.end ? new Date(existingEvent.end) : new Date(start.getTime() + 60 * 60 * 1000);
+
+      setStartTime(start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+      setEndTime(end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
     } else {
       setTitle('');
       setDescription('');
       setColor('#3b82f6');
+
+      // Default times
+      const now = new Date();
+      now.setMinutes(Math.ceil(now.getMinutes() / 15) * 15); // Round to nearest 15
+      const startStr = now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const end = new Date(now.getTime() + 60 * 60 * 1000);
+      const endStr = end.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+      setStartTime(startStr);
+      setEndTime(endStr);
     }
   }, [existingEvent, isOpen]);
 
@@ -44,12 +63,27 @@ const EventModal: React.FC<EventModalProps> = ({
     e.preventDefault();
     if (!activeDate && !existingEvent) return;
 
-    const eventDate = existingEvent ? existingEvent.start : activeDate!;
+    // Base date (year, month, day)
+    const baseDate = existingEvent ? new Date(existingEvent.start) : activeDate!;
+
+    // Create new start date with time
+    const [startHour, startMinute] = startTime.split(':').map(Number);
+    const startDate = new Date(baseDate);
+    startDate.setHours(startHour, startMinute, 0, 0);
+
+    // Create new end date with time
+    const [endHour, endMinute] = endTime.split(':').map(Number);
+    const endDate = new Date(baseDate);
+    endDate.setHours(endHour, endMinute, 0, 0);
+
+    // If end is before start, assume next day? Or just keep same day? 
+    // For simplicity, let's just keep same day, user can correct if needed.
+    // Ideally we might want end date to be separate, but request was just "time selection".
 
     onSave({
       id: existingEvent ? existingEvent.id : crypto.randomUUID(),
-      start: eventDate,
-      end: existingEvent?.end,
+      start: startDate,
+      end: endDate,
       title: title || 'New Event',
       description,
       color,
@@ -90,13 +124,34 @@ const EventModal: React.FC<EventModalProps> = ({
               />
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-mono uppercase text-zinc-500 mb-2">Start Time</label>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full bg-black/20 border border-white/5 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-zinc-600 transition-all placeholder:text-zinc-700 [color-scheme:dark]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-mono uppercase text-zinc-500 mb-2">End Time</label>
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="w-full bg-black/20 border border-white/5 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-zinc-600 transition-all placeholder:text-zinc-700 [color-scheme:dark]"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-mono uppercase text-zinc-500 mb-2">Description</label>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Add details here..."
-                rows={4}
+                rows={3}
                 className="w-full bg-black/20 border border-white/5 rounded-lg p-3 text-zinc-300 focus:outline-none focus:ring-2 focus:ring-zinc-600 transition-all resize-none placeholder:text-zinc-700"
               />
             </div>

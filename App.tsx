@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { GoogleOAuthProvider } from '@react-oauth/google';
 import Calendar from './components/Calendar';
 import Timer from './components/Timer';
 import TodoList from './components/TodoList';
@@ -13,43 +14,43 @@ const App: React.FC = () => {
   const [view, setView] = useState<AppView>('dashboard');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
 
+  const loadEvents = async () => {
+    // Fetch events from Supabase
+    const { data: supabaseEvents, error } = await (supabase
+      .from('events') as any)
+      .select('*')
+      .order('start_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching Supabase events:', error);
+    }
+
+    // Fetch Google Calendar events
+    const apiKey = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY;
+    const calendarId = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
+
+    let googleEvents: CalendarEvent[] = [];
+    if (apiKey && calendarId) {
+      googleEvents = await fetchGoogleCalendarEvents(apiKey, calendarId);
+    }
+
+    // Merge events: Supabase events + Google Calendar events
+    const allEvents: CalendarEvent[] = [
+      ...(supabaseEvents || []).map(e => ({
+        id: e.id,
+        title: e.title,
+        start: new Date(e.start_date),
+        end: e.end_date ? new Date(e.end_date) : undefined,
+        description: e.description || undefined,
+        color: e.color,
+      })),
+      ...googleEvents,
+    ];
+
+    setEvents(allEvents);
+  };
+
   useEffect(() => {
-    const loadEvents = async () => {
-      // Fetch events from Supabase
-      const { data: supabaseEvents, error } = await supabase
-        .from('events')
-        .select('*')
-        .order('start_date', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching Supabase events:', error);
-      }
-
-      // Fetch Google Calendar events
-      const apiKey = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY;
-      const calendarId = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
-
-      let googleEvents: CalendarEvent[] = [];
-      if (apiKey && calendarId) {
-        googleEvents = await fetchGoogleCalendarEvents(apiKey, calendarId);
-      }
-
-      // Merge events: Supabase events + Google Calendar events
-      const allEvents: CalendarEvent[] = [
-        ...(supabaseEvents || []).map(e => ({
-          id: e.id,
-          title: e.title,
-          start: new Date(e.start_date),
-          end: e.end_date ? new Date(e.end_date) : undefined,
-          description: e.description || undefined,
-          color: e.color,
-        })),
-        ...googleEvents,
-      ];
-
-      setEvents(allEvents);
-    };
-
     loadEvents();
 
     // Subscribe to real-time changes for events
@@ -94,13 +95,15 @@ const App: React.FC = () => {
           color: event.color || '#3b82f6',
         };
 
-        const { error } = await supabase
-          .from('events')
-          // @ts-ignore - Supabase type inference issue
+        const { error } = await (supabase
+          .from('events') as any)
           .update(updateData)
           .eq('id', event.id);
 
         if (error) throw error;
+
+        // Refresh events immediately
+        await loadEvents();
       } else {
         // Create new event
         const insertData = {
@@ -112,12 +115,14 @@ const App: React.FC = () => {
           color: event.color || '#3b82f6',
         };
 
-        const { error } = await supabase
-          .from('events')
-          // @ts-ignore - Supabase type inference issue
+        const { error } = await (supabase
+          .from('events') as any)
           .insert(insertData);
 
         if (error) throw error;
+
+        // Refresh events immediately
+        await loadEvents();
       }
     } catch (error) {
       console.error('Error saving event:', error);
@@ -126,19 +131,22 @@ const App: React.FC = () => {
 
   const handleDeleteEvent = async (id: string) => {
     try {
-      const { error } = await supabase
-        .from('events')
+      const { error } = await (supabase
+        .from('events') as any)
         .delete()
         .eq('id', id);
 
       if (error) throw error;
+
+      // Refresh events immediately
+      await loadEvents();
     } catch (error) {
       console.error('Error deleting event:', error);
     }
   };
 
   return (
-    <>
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       {view === 'flipclock' && <FlipClock onExit={() => setView('dashboard')} />}
 
       <div className={`min-h-screen bg-background p-4 sm:p-6 lg:p-8 flex flex-col transition-opacity duration-500 ${view === 'flipclock' ? 'opacity-0 pointer-events-none fixed' : 'opacity-100'}`}>
@@ -200,7 +208,7 @@ const App: React.FC = () => {
           existingEvent={selectedEvent}
         />
       </div>
-    </>
+    </GoogleOAuthProvider>
   );
 };
 
