@@ -2,8 +2,10 @@ import { CalendarEvent } from '../types';
 
 export const fetchGoogleCalendarEvents = async (apiKey: string, calendarId: string, accessToken?: string): Promise<CalendarEvent[]> => {
     try {
-        const timeMin = new Date().toISOString();
-        let url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?singleEvents=true&orderBy=startTime&maxResults=100&timeMin=${timeMin}`;
+        const timeMin = new Date();
+        timeMin.setDate(timeMin.getDate() - 7); // Last 7 days
+        const timeMinStr = timeMin.toISOString();
+        let url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?singleEvents=true&orderBy=startTime&maxResults=21&timeMin=${timeMinStr}&_t=${Date.now()}`;
 
         const headers: HeadersInit = {};
         if (accessToken) {
@@ -21,8 +23,8 @@ export const fetchGoogleCalendarEvents = async (apiKey: string, calendarId: stri
         }
 
         return (data.items || []).map((item: any) => {
-            const colors: ('red' | 'blue' | 'green' | 'yellow' | 'purple' | 'gray')[] = ['red', 'blue', 'green', 'yellow', 'purple', 'gray'];
-            const colorIndex = item.colorId ? parseInt(item.colorId) % colors.length : 0;
+            const colorId = item.colorId || '9'; // Default to blue (9)
+            const color = mapGoogleIdToColor(colorId);
 
             // Handle both date (all-day) and dateTime (timed)
             const start = item.start.dateTime ? new Date(item.start.dateTime) : new Date(item.start.date);
@@ -35,7 +37,7 @@ export const fetchGoogleCalendarEvents = async (apiKey: string, calendarId: stri
                 start: start,
                 end: end,
                 date: item.start.date || item.start.dateTime?.split('T')[0], // Keep for compatibility if needed, but start/end are preferred
-                color: colors[colorIndex],
+                color: color,
                 source: 'google' as const,
             };
         });
@@ -58,6 +60,7 @@ export const createGoogleCalendarEvent = async (event: CalendarEvent, calendarId
             end: {
                 dateTime: event.end?.toISOString() || new Date(event.start.getTime() + 60 * 60 * 1000).toISOString(),
             },
+            colorId: event.color ? mapColorToGoogleId(event.color) : undefined,
         };
 
         const response = await fetch(url, {
@@ -96,6 +99,7 @@ export const updateGoogleCalendarEvent = async (event: CalendarEvent, calendarId
             end: {
                 dateTime: event.end?.toISOString() || new Date(event.start.getTime() + 60 * 60 * 1000).toISOString(),
             },
+            colorId: event.color ? mapColorToGoogleId(event.color) : undefined,
         };
 
         const response = await fetch(url, {
@@ -143,4 +147,33 @@ export const deleteGoogleCalendarEvent = async (eventId: string, calendarId: str
         console.error('Failed to delete event:', error);
         throw error;
     }
+};
+
+const mapColorToGoogleId = (color: string): string => {
+    // Basic mapping based on Google Calendar standard colors
+    // https://lukeboyle.com/blog/posts/google-calendar-api-color-id
+    const colorMap: Record<string, string> = {
+        'red': '11',      // Tomato
+        'blue': '9',      // Blueberry
+        'green': '10',    // Basil
+        'yellow': '5',    // Banana
+        'purple': '3',    // Grape
+        'gray': '8',      // Graphite
+    };
+
+    return colorMap[color] || '9'; // Default to blue
+};
+
+const mapGoogleIdToColor = (googleId: string): 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'gray' => {
+    // Reverse mapping
+    const idMap: Record<string, 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'gray'> = {
+        '11': 'red',
+        '9': 'blue',
+        '10': 'green',
+        '5': 'yellow',
+        '3': 'purple',
+        '8': 'gray',
+    };
+
+    return idMap[googleId] || 'blue'; // Default to blue if unknown
 };

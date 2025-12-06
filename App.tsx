@@ -33,24 +33,21 @@ const App: React.FC = () => {
 
 
   const loadEvents = async () => {
-    // Fetch events from Supabase
-    const { data: supabaseEvents, error } = await (supabase
-      .from('events') as any)
-      .select('*')
-      .order('start_date', { ascending: true });
+    // Fetch both sources in parallel
+    const [supabaseResult, googleEventsResult] = await Promise.all([
+      (supabase.from('events') as any).select('*').order('start_date', { ascending: true }),
+      (async () => {
+        const apiKey = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY;
+        const calendarId = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
+        if (apiKey && calendarId) {
+          return await fetchGoogleCalendarEvents(apiKey, calendarId, accessToken || undefined);
+        }
+        return [];
+      })()
+    ]);
 
-    if (error) {
-      console.error('Error fetching Supabase events:', error);
-    }
-
-    // Fetch Google Calendar events
-    const apiKey = import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY;
-    const calendarId = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
-
-    let googleEvents: CalendarEvent[] = [];
-    if (apiKey && calendarId) {
-      googleEvents = await fetchGoogleCalendarEvents(apiKey, calendarId);
-    }
+    const { data: supabaseEvents, error } = supabaseResult;
+    const googleEvents = googleEventsResult;
 
     // Merge events: Supabase events + Google Calendar events
     const allEvents: CalendarEvent[] = [
@@ -220,6 +217,7 @@ const App: React.FC = () => {
               isConnected={!!accessToken}
               onConnect={() => login()}
               onDisconnect={logout}
+              onRefresh={loadEvents}
             />
           </div>
 

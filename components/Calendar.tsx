@@ -28,6 +28,7 @@ interface CalendarProps {
   isConnected: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
+  onRefresh: () => void;
 }
 
 const Calendar: React.FC<CalendarProps> = ({
@@ -36,8 +37,16 @@ const Calendar: React.FC<CalendarProps> = ({
   onViewEvent,
   isConnected,
   onConnect,
-  onDisconnect
+  onDisconnect,
+  onRefresh
 }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await onRefresh();
+    setIsRefreshing(false);
+  };
   const [currentDate, setCurrentDate] = useState(new Date());
   const [weekDays, setWeekDays] = useState<Date[]>([]);
 
@@ -90,6 +99,13 @@ const Calendar: React.FC<CalendarProps> = ({
         </h2>
 
         <div className="flex items-center gap-4">
+          <button
+            onClick={handleRefresh}
+            className={`p-2 rounded-full hover:bg-zinc-800 text-zinc-400 hover:text-white transition-all ${isRefreshing ? 'animate-spin text-white' : ''}`}
+            title="Refresh Calendar"
+          >
+            <Icons.Refresh className="w-4 h-4" />
+          </button>
           {isConnected ? (
             <div className="flex items-center gap-2">
               <span className="text-xs text-green-400 font-medium px-2 py-1 bg-green-400/10 rounded-full border border-green-400/20">
