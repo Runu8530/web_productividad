@@ -36,6 +36,7 @@ export const fetchGoogleCalendarEvents = async (apiKey: string, calendarId: stri
                 end: end,
                 date: item.start.date || item.start.dateTime?.split('T')[0], // Keep for compatibility if needed, but start/end are preferred
                 color: colors[colorIndex],
+                source: 'google' as const,
             };
         });
     } catch (error) {
@@ -78,6 +79,68 @@ export const createGoogleCalendarEvent = async (event: CalendarEvent, calendarId
         return data;
     } catch (error) {
         console.error('Failed to create event:', error);
+        throw error;
+    }
+};
+
+export const updateGoogleCalendarEvent = async (event: CalendarEvent, calendarId: string, accessToken: string) => {
+    try {
+        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${event.id}`;
+
+        const body = {
+            summary: event.title,
+            description: event.description,
+            start: {
+                dateTime: event.start.toISOString(),
+            },
+            end: {
+                dateTime: event.end?.toISOString() || new Date(event.start.getTime() + 60 * 60 * 1000).toISOString(),
+            },
+        };
+
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(body),
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            console.error('Error updating Google Calendar event:', data.error);
+            throw new Error(data.error.message);
+        }
+
+        return data;
+    } catch (error) {
+        console.error('Failed to update event:', error);
+        throw error;
+    }
+};
+
+export const deleteGoogleCalendarEvent = async (eventId: string, calendarId: string, accessToken: string) => {
+    try {
+        const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`;
+
+        const response = await fetch(url, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            const data = await response.json();
+            console.error('Error deleting Google Calendar event:', data.error);
+            throw new Error(data.error?.message || 'Failed to delete event');
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Failed to delete event:', error);
         throw error;
     }
 };

@@ -7,6 +7,7 @@ export interface CalendarEvent {
   end?: Date;
   description?: string;
   color?: string;
+  source?: 'google' | 'local';
 }
 
 

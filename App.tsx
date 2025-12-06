@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GoogleOAuthProvider } from '@react-oauth/google';
+import { useGoogleLogin } from '@react-oauth/google';
 import Calendar from './components/Calendar';
 import Timer from './components/Timer';
 import TodoList from './components/TodoList';
@@ -7,12 +7,30 @@ import FlipClock from './components/FlipClock';
 import EventModal from './components/EventModal';
 import { Icons } from './components/ui/Icons';
 import { AppView, CalendarEvent } from './types';
-import { fetchGoogleCalendarEvents } from './utils/googleCalendar';
+import { fetchGoogleCalendarEvents, createGoogleCalendarEvent, updateGoogleCalendarEvent, deleteGoogleCalendarEvent } from './utils/googleCalendar';
 import { supabase, type Database } from './utils/supabase';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('dashboard');
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [accessToken, setAccessToken] = useState<string | null>(localStorage.getItem('google_access_token'));
+
+  const login = useGoogleLogin({
+    onSuccess: (codeResponse) => {
+      setAccessToken(codeResponse.access_token);
+      localStorage.setItem('google_access_token', codeResponse.access_token);
+    },
+    onError: (error) => console.log('Login Failed:', error),
+    scope: 'https://www.googleapis.com/auth/calendar.events',
+  });
+
+  const logout = () => {
+    setAccessToken(null);
+    localStorage.removeItem('google_access_token');
+    // Reload events to remove Google events
+    loadEvents();
+  };
+
 
   const loadEvents = async () => {
     // Fetch events from Supabase
@@ -43,6 +61,7 @@ const App: React.FC = () => {
         end: e.end_date ? new Date(e.end_date) : undefined,
         description: e.description || undefined,
         color: e.color,
+        source: 'local' as const,
       })),
       ...googleEvents,
     ];
@@ -61,10 +80,12 @@ const App: React.FC = () => {
       })
       .subscribe();
 
+
+
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [accessToken]); // Reload when accessToken changes
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -85,45 +106,55 @@ const App: React.FC = () => {
 
   const handleSaveEvent = async (event: CalendarEvent) => {
     try {
+      const calendarId = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
+
       if (selectedEvent) {
         // Update existing event
-        const updateData = {
-          title: event.title,
-          start_date: event.start.toISOString(),
-          end_date: event.end ? event.end.toISOString() : null,
-          description: event.description || null,
-          color: event.color || '#3b82f6',
-        };
+        if (event.source === 'google' && accessToken && calendarId) {
+          await updateGoogleCalendarEvent(event, calendarId, accessToken);
+        } else {
+          // Update Supabase event
+          const updateData = {
+            title: event.title,
+            start_date: event.start.toISOString(),
+            end_date: event.end ? event.end.toISOString() : null,
+            description: event.description || null,
+            color: event.color || '#3b82f6',
+          };
 
-        const { error } = await (supabase
-          .from('events') as any)
-          .update(updateData)
-          .eq('id', event.id);
+          const { error } = await (supabase
+            .from('events') as any)
+            .update(updateData)
+            .eq('id', event.id);
 
-        if (error) throw error;
-
-        // Refresh events immediately
-        await loadEvents();
+          if (error) throw error;
+        }
       } else {
         // Create new event
-        const insertData = {
-          id: event.id,
-          title: event.title,
-          start_date: event.start.toISOString(),
-          end_date: event.end ? event.end.toISOString() : null,
-          description: event.description || null,
-          color: event.color || '#3b82f6',
-        };
+        if (accessToken && calendarId) {
+          // Create in Google Calendar if connected
+          await createGoogleCalendarEvent(event, calendarId, accessToken);
+        } else {
+          // Create in Supabase
+          const insertData = {
+            id: event.id,
+            title: event.title,
+            start_date: event.start.toISOString(),
+            end_date: event.end ? event.end.toISOString() : null,
+            description: event.description || null,
+            color: event.color || '#3b82f6',
+          };
 
-        const { error } = await (supabase
-          .from('events') as any)
-          .insert(insertData);
+          const { error } = await (supabase
+            .from('events') as any)
+            .insert(insertData);
 
-        if (error) throw error;
-
-        // Refresh events immediately
-        await loadEvents();
+          if (error) throw error;
+        }
       }
+
+      // Refresh events immediately
+      await loadEvents();
     } catch (error) {
       console.error('Error saving event:', error);
     }
@@ -131,12 +162,19 @@ const App: React.FC = () => {
 
   const handleDeleteEvent = async (id: string) => {
     try {
-      const { error } = await (supabase
-        .from('events') as any)
-        .delete()
-        .eq('id', id);
+      const eventToDelete = events.find(e => e.id === id);
+      const calendarId = import.meta.env.VITE_GOOGLE_CALENDAR_ID;
 
-      if (error) throw error;
+      if (eventToDelete?.source === 'google' && accessToken && calendarId) {
+        await deleteGoogleCalendarEvent(id, calendarId, accessToken);
+      } else {
+        const { error } = await (supabase
+          .from('events') as any)
+          .delete()
+          .eq('id', id);
+
+        if (error) throw error;
+      }
 
       // Refresh events immediately
       await loadEvents();
@@ -146,7 +184,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
+    <>
       {view === 'flipclock' && <FlipClock onExit={() => setView('dashboard')} />}
 
       <div className={`min-h-screen bg-background p-4 sm:p-6 lg:p-8 flex flex-col transition-opacity duration-500 ${view === 'flipclock' ? 'opacity-0 pointer-events-none fixed' : 'opacity-100'}`}>
@@ -179,6 +217,9 @@ const App: React.FC = () => {
               events={events}
               onAddEvent={handleAddEventClick}
               onViewEvent={handleViewEventClick}
+              isConnected={!!accessToken}
+              onConnect={() => login()}
+              onDisconnect={logout}
             />
           </div>
 
@@ -208,7 +249,7 @@ const App: React.FC = () => {
           existingEvent={selectedEvent}
         />
       </div>
-    </GoogleOAuthProvider>
+    </>
   );
 };
 
