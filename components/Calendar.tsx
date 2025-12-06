@@ -142,15 +142,15 @@ const Calendar: React.FC<CalendarProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-4 flex-1 h-0 min-h-[300px]">
+      <div className="grid grid-cols-1 md:grid-cols-7 gap-4 flex-1 h-auto md:h-0 min-h-[300px] overflow-y-auto md:overflow-visible">
         {weekDays.map((day, i) => {
           const dayEvents = getEventsForDay(day);
           const isToday = isSameDay(day, today);
 
           return (
-            <div key={i} className={`flex flex-col h-full rounded-2xl overflow-hidden transition-colors ${isToday ? 'bg-white/5 ring-1 ring-white/10' : 'bg-transparent'}`}>
+            <div key={i} className={`flex flex-row md:flex-col h-auto md:h-full rounded-2xl overflow-hidden transition-colors ${isToday ? 'bg-white/5 ring-1 ring-white/10' : 'bg-transparent'} border border-white/5 md:border-none mb-2 md:mb-0 min-h-[100px] md:min-h-0`}>
               <div
-                className={`p-3 text-center border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors group`}
+                className={`p-3 md:text-center border-r md:border-r-0 md:border-b border-white/5 cursor-pointer hover:bg-white/5 transition-colors group flex md:block flex-col justify-center items-center min-w-[80px] md:min-w-0`}
                 onClick={() => onAddEvent(day)}
               >
                 <div className="text-xs uppercase font-bold text-zinc-500 mb-1 tracking-wider">{day.toLocaleDateString('en-US', { weekday: 'short' })}</div>
@@ -162,7 +162,7 @@ const Calendar: React.FC<CalendarProps> = ({
                 </div>
               </div>
 
-              <div className="flex-1 p-2 space-y-2 overflow-y-auto custom-scrollbar">
+              <div className="flex-1 p-2 space-y-2 overflow-y-auto custom-scrollbar md:block flex flex-col justify-start">
                 {dayEvents.map(event => (
                   <button
                     key={event.id}
@@ -180,7 +180,7 @@ const Calendar: React.FC<CalendarProps> = ({
                   <div className="h-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => onAddEvent(day)}
-                      className="w-full h-full flex items-center justify-center text-zinc-700 hover:text-zinc-500"
+                      className="w-full h-full flex items-center justify-center text-zinc-700 hover:text-zinc-500 py-4 md:py-0"
                     >
                       <Icons.Add className="w-6 h-6" />
                     </button>
@@ -191,7 +191,7 @@ const Calendar: React.FC<CalendarProps> = ({
           );
         })}
       </div>
-    </div>
+    </div >
   );
 };
 

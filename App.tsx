@@ -223,7 +223,7 @@ const App: React.FC = () => {
 
           {/* Bottom Section: Split Grid (Takes about 55% of height on desktop) */}
           {/* grid-cols-1 by default (mobile), md:grid-cols-2 for tablet+ */}
-          <div className="flex-[5] grid grid-cols-2 gap-6 min-h-[400px]">
+          <div className="flex-[5] grid grid-cols-1 md:grid-cols-2 gap-6 min-h-[800px] md:min-h-[400px]">
             {/* Left: Timer */}
             <div className="h-full">
               <Timer />
