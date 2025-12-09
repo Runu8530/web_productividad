@@ -77,8 +77,8 @@ const Timer: React.FC = () => {
         <button
           onClick={() => switchMode('pomodoro')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${state.mode === 'pomodoro'
-              ? 'bg-zinc-700 text-white shadow-lg'
-              : 'text-zinc-500 hover:text-zinc-300'
+            ? 'bg-zinc-700 text-white shadow-lg'
+            : 'text-zinc-500 hover:text-zinc-300'
             }`}
         >
           Pomodoro
@@ -86,8 +86,8 @@ const Timer: React.FC = () => {
         <button
           onClick={() => switchMode('stopwatch')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${state.mode === 'stopwatch'
-              ? 'bg-zinc-700 text-white shadow-lg'
-              : 'text-zinc-500 hover:text-zinc-300'
+            ? 'bg-zinc-700 text-white shadow-lg'
+            : 'text-zinc-500 hover:text-zinc-300'
             }`}
         >
           Stopwatch
@@ -117,8 +117,8 @@ const Timer: React.FC = () => {
           <button
             onClick={toggleTimer}
             className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-all duration-200 active:scale-95 ${state.isActive
-                ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20'
-                : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
+              ? 'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20'
+              : 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20'
               }`}
           >
             {state.isActive ? <Icons.Pause size={28} fill="currentColor" /> : <Icons.Play size={28} fill="currentColor" />}

@@ -5,8 +5,8 @@ import { Icons } from './ui/Icons';
 interface EventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (event: CalendarEvent) => void;
-  onDelete: (id: string) => void;
+  onSave: (event: CalendarEvent) => Promise<void> | void;
+  onDelete: (id: string) => Promise<void> | void;
   activeDate: Date | null;
   existingEvent: CalendarEvent | null;
 }
@@ -27,6 +27,7 @@ const EventModal: React.FC<EventModalProps> = ({
   const [color, setColor] = useState<string>('#3b82f6');
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('10:00');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (existingEvent) {
@@ -59,7 +60,7 @@ const EventModal: React.FC<EventModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeDate && !existingEvent) return;
 
@@ -80,21 +81,36 @@ const EventModal: React.FC<EventModalProps> = ({
     // For simplicity, let's just keep same day, user can correct if needed.
     // Ideally we might want end date to be separate, but request was just "time selection".
 
-    onSave({
-      id: existingEvent ? existingEvent.id : crypto.randomUUID(),
-      start: startDate,
-      end: endDate,
-      title: title || 'New Event',
-      description,
-      color,
-    });
-    onClose();
+    try {
+      setIsSubmitting(true);
+      await onSave({
+        id: existingEvent ? existingEvent.id : crypto.randomUUID(),
+        start: startDate,
+        end: endDate,
+        title: title || 'New Event',
+        description,
+        color,
+      });
+      onClose();
+    } catch (error) {
+      console.error("Failed to save event", error);
+      // Optional: show error message in UI
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (existingEvent) {
-      onDelete(existingEvent.id);
-      onClose();
+      try {
+        setIsSubmitting(true);
+        await onDelete(existingEvent.id);
+        onClose();
+      } catch (error) {
+        console.error("Failed to delete event", error);
+      } finally {
+        setIsSubmitting(false);
+      }
     }
   }
 
@@ -176,17 +192,19 @@ const EventModal: React.FC<EventModalProps> = ({
             <div className="pt-4 flex gap-3">
               <button
                 type="submit"
-                className="flex-1 bg-white text-black font-bold py-3 rounded-xl hover:bg-zinc-200 transition-colors"
+                disabled={isSubmitting}
+                className="flex-1 bg-white text-black font-bold py-3 rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {existingEvent ? 'Update' : 'Create'}
+                {isSubmitting ? 'Saving...' : (existingEvent ? 'Update' : 'Create')}
               </button>
               {existingEvent && (
                 <button
                   type="button"
                   onClick={handleDelete}
-                  className="px-4 py-3 bg-red-900/20 text-red-400 font-medium rounded-xl hover:bg-red-900/40 transition-colors"
+                  disabled={isSubmitting}
+                  className="px-4 py-3 bg-red-900/20 text-red-400 font-medium rounded-xl hover:bg-red-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Delete
+                  {isSubmitting ? '...' : 'Delete'}
                 </button>
               )}
             </div>

@@ -3,9 +3,17 @@ import { CalendarEvent } from '../types';
 export const fetchGoogleCalendarEvents = async (apiKey: string, calendarId: string, accessToken?: string): Promise<CalendarEvent[]> => {
     try {
         const timeMin = new Date();
-        timeMin.setDate(timeMin.getDate() - 7); // Last 7 days
+        timeMin.setDate(timeMin.getDate() - 30); // Last 30 days
         const timeMinStr = timeMin.toISOString();
-        let url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?singleEvents=true&orderBy=startTime&maxResults=21&timeMin=${timeMinStr}&_t=${Date.now()}`;
+
+        const timeMax = new Date();
+        timeMax.setMonth(timeMax.getMonth() + 6); // Next 6 months
+        const timeMaxStr = timeMax.toISOString();
+
+        let url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?singleEvents=true&orderBy=startTime&maxResults=50&timeMin=${timeMinStr}&timeMax=${timeMaxStr}&_t=${Date.now()}`;
+
+        // Add timeMax to avoid fetching too far into the future if limit is high, but for now just increasing limit.
+        // Let's rely on limit + maybe a localized timeMax if needed later.
 
         const headers: HeadersInit = {};
         if (accessToken) {
@@ -20,6 +28,11 @@ export const fetchGoogleCalendarEvents = async (apiKey: string, calendarId: stri
         if (data.error) {
             console.error('Google Calendar API Error:', data.error);
             return [];
+        }
+
+        console.log(`Fetched ${data.items ? data.items.length : 0} events from Google Calendar.`);
+        if (data.items && data.items.length > 0) {
+            console.log('Last fetched event start:', data.items[data.items.length - 1].start.dateTime || data.items[data.items.length - 1].start.date);
         }
 
         return (data.items || []).map((item: any) => {
@@ -72,6 +85,10 @@ export const createGoogleCalendarEvent = async (event: CalendarEvent, calendarId
             body: JSON.stringify(body),
         });
 
+        if (response.status === 401) {
+            throw new Error('Unauthorized');
+        }
+
         const data = await response.json();
 
         if (data.error) {
@@ -111,6 +128,10 @@ export const updateGoogleCalendarEvent = async (event: CalendarEvent, calendarId
             body: JSON.stringify(body),
         });
 
+        if (response.status === 401) {
+            throw new Error('Unauthorized');
+        }
+
         const data = await response.json();
 
         if (data.error) {
@@ -135,6 +156,10 @@ export const deleteGoogleCalendarEvent = async (eventId: string, calendarId: str
                 'Authorization': `Bearer ${accessToken}`,
             },
         });
+
+        if (response.status === 401) {
+            throw new Error('Unauthorized');
+        }
 
         if (!response.ok) {
             const data = await response.json();

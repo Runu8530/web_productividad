@@ -152,8 +152,14 @@ const App: React.FC = () => {
 
       // Refresh events immediately
       await loadEvents();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving event:', error);
+
+      if (error.message === 'Unauthorized') {
+        alert('Your Google Session has expired. Please reconnect.');
+        logout();
+      }
+      throw error; // Re-throw so modal knows it failed
     }
   };
 
@@ -175,8 +181,13 @@ const App: React.FC = () => {
 
       // Refresh events immediately
       await loadEvents();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting event:', error);
+      if (error.message === 'Unauthorized') {
+        alert('Your Google Session has expired. Please reconnect.');
+        logout();
+      }
+      throw error;
     }
   };
 
